@@ -21,7 +21,7 @@ from uuid import uuid4
 from app.core.config import settings
 
 
-_TRACE_VERSION = 2
+_TRACE_VERSION = 3
 _MAX_SERIALIZATION_DEPTH = 12
 
 
@@ -88,6 +88,7 @@ class AgentLocalTrace:
                 "app_env": settings.app_env,
             },
             "agent": {},
+            "agent_stages": {},
             "tool_calls": [],
             "timings_ms": {},
             "final_response": None,
@@ -103,6 +104,8 @@ class AgentLocalTrace:
     def capture_agent_configuration(
         self,
         *,
+        stage: str = "single",
+        agent_name: str = "mwobarellae_action_agent",
         model: str,
         configured_model: str | None = None,
         model_source: str = "configured_default",
@@ -113,8 +116,8 @@ class AgentLocalTrace:
         agent_input: str,
     ) -> None:
         tool_entries = [_serialize_tool(tool) for tool in selected_tools]
-        self._payload["agent"] = {
-            "name": "mwobarellae_action_agent",
+        configuration = {
+            "name": agent_name,
             "model": model,
             "configured_model": configured_model or model,
             "model_source": model_source,
@@ -130,12 +133,15 @@ class AgentLocalTrace:
             "input": agent_input,
             "input_bytes": _utf8_size(agent_input),
         }
+        self._payload["agent"] = dict(configuration)
+        self._payload["agent_stages"][stage] = dict(configuration)
 
     def capture_short_circuit(
         self,
         *,
         reason: str,
         configured_model: str | None,
+        stage: str = "fast_path",
     ) -> None:
         """Record that a deterministic clarification completed without a model call."""
         zero_usage = {
@@ -145,7 +151,7 @@ class AgentLocalTrace:
             "reasoning_tokens": 0,
             "total_tokens": 0,
         }
-        self._payload["agent"] = {
+        payload = {
             "name": "mwobarellae_action_agent",
             "model": None,
             "configured_model": configured_model,
@@ -162,10 +168,13 @@ class AgentLocalTrace:
                 },
             },
         }
+        self._payload["agent"] = dict(payload)
+        self._payload["agent_stages"][stage] = dict(payload)
 
     def record_runner_attempt(
         self,
         *,
+        stage: str = "single",
         attempt: int,
         duration_ms: float,
         model: str | None = None,
@@ -173,7 +182,8 @@ class AgentLocalTrace:
         completed_at: datetime | None = None,
         error: Exception | None = None,
     ) -> None:
-        attempts = self._payload["agent"].setdefault("runner_attempts", [])
+        stage_payload = self._payload["agent_stages"].setdefault(stage, {})
+        attempts = stage_payload.setdefault("runner_attempts", [])
         entry: dict[str, Any] = {
             "attempt": attempt,
             "duration_ms": round(max(float(duration_ms), 0.0), 2),
@@ -186,16 +196,19 @@ class AgentLocalTrace:
             entry["exception_type"] = type(error).__name__
             entry["message"] = str(error)
         attempts.append(entry)
+        if stage == "single" or self._payload["agent"].get("name") == stage_payload.get("name"):
+            self._payload["agent"].setdefault("runner_attempts", []).append(dict(entry))
 
     def capture_runner_result(
         self,
         result: Any,
         *,
+        stage: str = "single",
         usage: Any,
         usage_breakdown: Any | None = None,
         cost_estimate: Any | None = None,
     ) -> None:
-        self._payload["agent"]["runner_result"] = {
+        runner_result = {
             "type": type(result).__name__,
             "final_output": _json_safe(getattr(result, "final_output", None)),
             "new_items": _json_safe(getattr(result, "new_items", None)),
@@ -210,10 +223,18 @@ class AgentLocalTrace:
             "usage_breakdown": _json_safe(usage_breakdown),
             "cost_estimate": _json_safe(cost_estimate),
         }
+        stage_payload = self._payload["agent_stages"].setdefault(stage, {})
+        stage_payload["runner_result"] = runner_result
+        if stage == "single" or self._payload["agent"].get("name") == stage_payload.get("name"):
+            self._payload["agent"]["runner_result"] = runner_result
+
+    def set_stage_value(self, stage: str, name: str, value: Any) -> None:
+        self._payload["agent_stages"].setdefault(stage, {})[name] = _json_safe(value)
 
     def record_tool_call(
         self,
         *,
+        agent_stage: str | None = None,
         tool_name: str,
         model_arguments: Mapping[str, Any],
         resolved_arguments: Mapping[str, Any],
@@ -224,22 +245,24 @@ class AgentLocalTrace:
         response_serialize_ms: float,
         total_ms: float,
     ) -> None:
-        self._payload["tool_calls"].append(
-            {
-                "tool_name": tool_name,
-                "model_arguments": _json_safe(model_arguments),
-                "resolved_arguments": _json_safe(resolved_arguments),
-                "response": _json_safe(response),
-                "sdk_return_value": sdk_return_value,
-                "sdk_return_bytes": _utf8_size(sdk_return_value),
-                "timings_ms": {
-                    "reference_resolve_ms": round(max(reference_resolve_ms, 0.0), 2),
-                    "dispatch_ms": round(max(dispatch_ms, 0.0), 2),
-                    "response_serialize_ms": round(max(response_serialize_ms, 0.0), 2),
-                    "total_ms": round(max(total_ms, 0.0), 2),
-                },
-            }
-        )
+        entry = {
+            "tool_name": tool_name,
+            "agent_stage": agent_stage,
+            "model_arguments": _json_safe(model_arguments),
+            "resolved_arguments": _json_safe(resolved_arguments),
+            "response": _json_safe(response),
+            "sdk_return_value": sdk_return_value,
+            "sdk_return_bytes": _utf8_size(sdk_return_value),
+            "timings_ms": {
+                "reference_resolve_ms": round(max(reference_resolve_ms, 0.0), 2),
+                "dispatch_ms": round(max(dispatch_ms, 0.0), 2),
+                "response_serialize_ms": round(max(response_serialize_ms, 0.0), 2),
+                "total_ms": round(max(total_ms, 0.0), 2),
+            },
+        }
+        self._payload["tool_calls"].append(entry)
+        tool_stage = self._payload["agent_stages"].setdefault("tool_execution", {})
+        tool_stage.setdefault("tool_calls", []).append(dict(entry))
 
     def capture_final_response(self, response: Any, *, model_dump_ms: float, json_encode_ms: float) -> None:
         payload = _json_safe(response)
@@ -247,6 +270,11 @@ class AgentLocalTrace:
         self._payload["final_response"] = {
             "payload": payload,
             "bytes": _utf8_size(encoded),
+        }
+        self._payload["agent_stages"]["final_response"] = {
+            "bytes": _utf8_size(encoded),
+            "model_dump_ms": round(max(model_dump_ms, 0.0), 2),
+            "json_encode_ms": round(max(json_encode_ms, 0.0), 2),
         }
         self.set_timing("final_response_model_dump_ms", model_dump_ms)
         self.set_timing("final_response_json_encode_ms", json_encode_ms)
@@ -301,6 +329,10 @@ def _build_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
     agent = payload.get("agent")
     route = payload.get("route")
     runner_result = agent.get("runner_result", {}) if isinstance(agent, Mapping) else {}
+    stages = payload.get("agent_stages") if isinstance(payload.get("agent_stages"), Mapping) else {}
+    router_stage = stages.get("router", {}) if isinstance(stages, Mapping) else {}
+    fallback_stage = stages.get("fallback", {}) if isinstance(stages, Mapping) else {}
+    specialist_stage = stages.get("specialist", {}) if isinstance(stages, Mapping) else {}
     return {
         "question": request.get("message") if isinstance(request, Mapping) else None,
         "model": agent.get("model") if isinstance(agent, Mapping) else None,
@@ -314,6 +346,25 @@ def _build_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
         else None,
         "timings_ms": payload.get("timings_ms", {}),
         "tool_call_count": len(payload.get("tool_calls", [])),
+        "stages": {
+            "router": _stage_summary(router_stage),
+            "specialist": _stage_summary(specialist_stage),
+            "fallback": _stage_summary(fallback_stage),
+        },
+    }
+
+
+def _stage_summary(stage: Any) -> dict[str, Any] | None:
+    if not isinstance(stage, Mapping) or not stage:
+        return None
+    runner_result = stage.get("runner_result") if isinstance(stage.get("runner_result"), Mapping) else {}
+    return {
+        "name": stage.get("name"),
+        "model": stage.get("model"),
+        "input_bytes": stage.get("input_bytes"),
+        "selected_tool_count": stage.get("selected_tool_count"),
+        "usage_breakdown": runner_result.get("usage_breakdown"),
+        "cost_estimate": runner_result.get("cost_estimate"),
     }
 
 

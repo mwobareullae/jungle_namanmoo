@@ -1,0 +1,261 @@
+{
+  "version": 1,
+  "name": "single-agent-baseline-v1",
+  "description": "Current single-Agent baseline before Router/Specialist redesign. The cases cover recommendation quality and the five demo Agent paths.",
+  "bootstrap_request": {
+    "concern_text": "피지가 많고 모공이 넓어 고민이야",
+    "skin_type": "수부지",
+    "sensitivity": "보통",
+    "avoid_ingredients": [],
+    "required_ingredient_names": []
+  },
+  "cases": [
+    {
+      "id": "pore-oily-01",
+      "group": "recommendation",
+      "message": "피지가 많고 모공이 넓어 고민이야",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "manual_review": true
+      }
+    },
+    {
+      "id": "pore-oily-02",
+      "group": "recommendation",
+      "message": "피부가 너무 번들거려요",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "manual_review": true
+      }
+    },
+    {
+      "id": "dehydrated-oily-01",
+      "group": "recommendation",
+      "message": "속은 당기는데 겉은 번들거려요",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "manual_review": true
+      }
+    },
+    {
+      "id": "barrier-dry-01",
+      "group": "recommendation",
+      "message": "세안 후 바로 당기고 각질이 일어나요",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "manual_review": true
+      }
+    },
+    {
+      "id": "acne-01",
+      "group": "recommendation",
+      "message": "턱에 여드름이 자꾸 올라와요",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "manual_review": true
+      }
+    },
+    {
+      "id": "redness-sensitive-01",
+      "group": "recommendation",
+      "message": "얼굴이 쉽게 붉어지고 열감이 있어요",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "manual_review": true
+      }
+    },
+    {
+      "id": "pigmentation-01",
+      "group": "recommendation",
+      "message": "여드름 자국과 잡티가 잘 안 없어져요",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "manual_review": true
+      }
+    },
+    {
+      "id": "texture-01",
+      "group": "recommendation",
+      "message": "화장이 자꾸 뜨고 결이 거칠어요",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "manual_review": true
+      }
+    },
+    {
+      "id": "complex-concern-01",
+      "group": "recommendation",
+      "message": "예민한데 건조하고 트러블도 있어요",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "manual_review": true
+      }
+    },
+    {
+      "id": "ingredient-price-01",
+      "group": "recommendation",
+      "message": "나이아신아마이드가 들어간 2만원 이하 세럼 추천해줘",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "argument_equals": {
+          "price_max": 20000
+        },
+        "argument_includes": {
+          "required_ingredient_names": [
+            "나이아신아마이드"
+          ]
+        },
+        "manual_review": true
+      }
+    },
+    {
+      "id": "avoid-ingredient-01",
+      "group": "recommendation",
+      "message": "향료와 에탄올은 피하고 민감 피부도 쓸 수 있는 보습 크림 찾아줘",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "argument_includes": {
+          "avoid_ingredients": [
+            "향료",
+            "에탄올"
+          ]
+        },
+        "manual_review": true
+      }
+    },
+    {
+      "id": "multi-constraint-01",
+      "group": "recommendation",
+      "message": "수부지 피부인데 모공과 피지가 고민이야. 여드름을 유발할 만한 성분은 피하고 3만원 이하 제품 추천해줘",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "argument_equals": {
+          "price_max": 30000
+        },
+        "manual_review": true
+      }
+    },
+    {
+      "id": "demo-recommendation",
+      "group": "demo-agent",
+      "message": "피지가 많고 모공이 넓어 고민이야",
+      "auth_mode": "guest",
+      "context_mode": "home",
+      "expect": {
+        "tool_name": "create_recommendation",
+        "requires_confirmation": false,
+        "min_items": 1,
+        "manual_review": true
+      }
+    },
+    {
+      "id": "demo-search-filter",
+      "group": "demo-agent",
+      "message": "3만원 이하 세럼만 보여줘",
+      "auth_mode": "guest",
+      "context_mode": "search_results",
+      "expect": {
+        "tool_name": "refine_product_results",
+        "requires_confirmation": false,
+        "argument_equals": {
+          "max_price": 30000
+        },
+        "manual_review": true
+      }
+    },
+    {
+      "id": "demo-similar-products",
+      "group": "demo-agent",
+      "message": "비슷한 상품 2개 보여줘",
+      "auth_mode": "guest",
+      "context_mode": "product_detail",
+      "expect": {
+        "tool_name": "find_similar_products",
+        "requires_confirmation": false,
+        "ui_action_target": "similar_products",
+        "argument_equals": {
+          "limit": 2
+        },
+        "manual_review": true
+      }
+    },
+    {
+      "id": "demo-order-confirmation",
+      "group": "demo-agent",
+      "message": "마지막 상품 주문해줘",
+      "auth_mode": "authenticated",
+      "context_mode": "similar_result",
+      "requires_write_preview": true,
+      "expect": {
+        "tool_name": "prepare_product_checkout",
+        "requires_confirmation": false,
+        "manual_review": true
+      }
+    },
+    {
+      "id": "demo-bulk-wishlist",
+      "group": "demo-agent",
+      "message": "인기 상품 20위 안에서 나이아신아마이드가 들어간 제품을 전부 찜해줘",
+      "auth_mode": "authenticated",
+      "context_mode": "cart",
+      "requires_write_preview": true,
+      "expect": {
+        "tool_name": "bulk_wishlist_by_popular_ingredient",
+        "requires_confirmation": true,
+        "argument_equals": {
+          "ingredient_name": "나이아신아마이드",
+          "rank_limit": 20
+        },
+        "manual_review": true
+      }
+    }
+  ]
+}

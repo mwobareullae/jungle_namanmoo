@@ -246,9 +246,62 @@ def prepare_agent_checkout(
     address_id: int | None,
 ) -> AgentChatResponse:
     validate_tool_access(PREPARE_CHECKOUT_TOOL, user_id=user.id)
-    selected_item_ids, selected_address_id = _resolve_checkout_selection(
-        session, user, cart_item_ids=cart_item_ids, address_id=address_id
-    )
+    cart = get_cart_response(session, user, None)
+    if cart_item_ids is None:
+        action = AgentUiAction(
+            type="noop",
+            payload={
+                "agent_flow": "checkout",
+                "continuation": "select_cart_items",
+            },
+        )
+        validate_tool_ui_action(PREPARE_CHECKOUT_TOOL, action)
+        return AgentChatResponse(
+            conversation_id=_conversation_id(conversation_id),
+            message="주문할 장바구니 상품을 먼저 선택해 주세요.",
+            tool_name=PREPARE_CHECKOUT_TOOL,
+            ui_action=action,
+            error=AgentError(
+                code="AGENT_CHECKOUT_SELECTION_REQUIRED",
+                message="주문할 장바구니 상품 선택이 필요합니다.",
+                retryable=False,
+            ),
+        )
+
+    selected_item_ids = cart_item_ids
+    if not selected_item_ids:
+        raise ApiError(400, "AGENT_CART_EMPTY", "장바구니가 비어 있어요.")
+
+    selected_address_id = address_id
+    if selected_address_id is None:
+        addresses = get_user_addresses(session, user).items
+        default_address = next((item for item in addresses if item.is_default), addresses[0] if addresses else None)
+        if default_address is None:
+            action = AgentUiAction(
+                type="noop",
+                payload={
+                    "agent_flow": "checkout",
+                    "cart_item_ids": selected_item_ids,
+                    "continuation": "register_shipping_address",
+                },
+            )
+            validate_tool_ui_action(PREPARE_CHECKOUT_TOOL, action)
+            return AgentChatResponse(
+                conversation_id=_conversation_id(conversation_id),
+                message=(
+                    "등록된 배송지가 없어요. 받는 분 이름, 연락처, 우편번호, "
+                    "기본 주소를 알려주시면 등록 후 주문서를 열어드릴게요."
+                ),
+                tool_name=PREPARE_CHECKOUT_TOOL,
+                ui_action=action,
+                error=AgentError(
+                    code="AGENT_ADDRESS_REQUIRED",
+                    message="주문서 이동을 위해 배송지가 필요해요.",
+                    retryable=False,
+                ),
+            )
+        selected_address_id = default_address.id
+
     preview = get_checkout_preview(
         session,
         user,

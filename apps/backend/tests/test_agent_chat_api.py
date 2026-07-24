@@ -33,6 +33,7 @@ from app.services.agent_openai_runner import (
     _OpenAICircuitBreaker,
     _OpenAIConcurrencyLimiter,
     AgentWorkflowTiming,
+    LocalAgentExecutionOverride,
     _build_agent_input,
     _classify_openai_failure,
     _expected_tool_error_response,
@@ -156,6 +157,12 @@ def test_agent_execution_errors_are_classified_without_leaking_details(
     ("error", "code", "message", "retryable"),
     [
         (ApiError(400, "EMPTY_CART", "Cart is empty."), "AGENT_CART_EMPTY", "장바구니가 비어 있어요. 상품을 먼저 담아주세요.", False),
+        (
+            ApiError(400, "AGENT_BULK_WISHLIST_RANK_LIMIT", "Rank limit is 50."),
+            "AGENT_BULK_WISHLIST_RANK_LIMIT",
+            "인기 상품은 50위까지만 한 번에 확인할 수 있어요. 50위 이하로 알려주세요.",
+            False,
+        ),
         (ApiError(409, "OUT_OF_STOCK", "Product is out of stock."), "AGENT_OUT_OF_STOCK", "해당 상품은 일시품절이에요.", False),
         (ApiError(409, "INSUFFICIENT_STOCK", "Requested quantity exceeds stock."), "AGENT_INSUFFICIENT_STOCK", "요청한 수량만큼 재고가 없어요.", False),
         (ApiError(500, "DATABASE_FAILURE", "relation internal_table does not exist"), "AGENT_TOOL_EXECUTION_FAILED", "요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.", True),
@@ -728,6 +735,32 @@ async def test_shipping_address_details_continue_checkout_without_openai(
     }
 
 
+@pytest.mark.anyio
+@pytest.mark.parametrize("execution_mode", ["single", "router_specialist"])
+async def test_invalid_shipping_postal_code_clarifies_without_openai(
+    monkeypatch: pytest.MonkeyPatch,
+    execution_mode: str,
+) -> None:
+    monkeypatch.setattr(settings, "openai_api_key", None)
+
+    response = await run_openai_agent_chat(
+        None,  # type: ignore[arg-type]
+        AgentChatRequest(
+            message=(
+                "받는 분: 김원우, 연락처: 010-1234-5678, 우편번호: 0452, "
+                "주소: 서울특별시 중구 세종대로 110"
+            ),
+            context=AgentContext(page="checkout", cart_item_ids=[11]),
+        ),
+        execution_override=LocalAgentExecutionOverride(execution_mode=execution_mode),
+    )
+
+    assert response.tool_name == "register_shipping_address"
+    assert response.error is not None
+    assert response.error.code == "AGENT_CLARIFICATION_REQUIRED"
+    assert response.message == "우편번호는 숫자 5자리로 알려주세요."
+
+
 def test_guest_tool_exposure_removes_every_authenticated_tool() -> None:
     tool_names = _select_agent_tool_names(
         user=None,
@@ -929,7 +962,7 @@ async def test_explicit_bulk_wishlist_requires_auth_without_openai(
     response = await run_openai_agent_chat(
         Session(),
         AgentChatRequest(
-            message="인기 상품 20위 안에서 나이아신아마이드가 들어간 제품을 전부 찜해줘",
+            message="인기 상품 상위 50위 안에서 나이아신아마이드와 판테놀을 모두 포함한 2만원 이하 세럼을 전부 찜해줘",
             context=AgentContext(page="home"),
         ),
     )
@@ -978,7 +1011,12 @@ async def test_explicit_bulk_wishlist_uses_one_tool_and_short_instructions(
     assert captured["instructions"] == EXPLICIT_BULK_WISHLIST_INSTRUCTIONS
     assert len(EXPLICIT_BULK_WISHLIST_INSTRUCTIONS) < len(AGENT_INSTRUCTIONS)
     assert set(captured["tool_schema"]["properties"]) == {
+        "category",
+        "ingredient_match_mode",
         "ingredient_name",
+        "ingredient_names",
+        "price_max",
+        "price_min",
         "rank_limit",
         "window_days",
     }
@@ -1066,11 +1104,13 @@ def test_agent_chat_route_writes_local_raw_trace(
     monkeypatch.setattr(settings, "openai_agent_local_trace_dir", str(tmp_path))
 
     captured_model_overrides: list[str | None] = []
+    captured_execution_overrides: list[object] = []
 
     async def fake_run_openai_agent_chat(*_args, **kwargs) -> AgentChatResponse:
         trace = kwargs["local_trace"]
         assert trace is not None
         captured_model_overrides.append(kwargs["model_override"])
+        captured_execution_overrides.append(kwargs["execution_override"])
         kwargs["workflow_timing"].agent_runner_ms = 123.4
         return AgentChatResponse(
             conversation_id="conv-local-trace-route",
@@ -1087,7 +1127,14 @@ def test_agent_chat_route_writes_local_raw_trace(
 
     response = client.post(
         "/api/agent/chat",
-        headers={"X-Agent-Local-Model": "gpt-5.4-mini"},
+        headers={
+            "X-Agent-Local-Model": "gpt-5.4-mini",
+            "X-Agent-Local-Execution-Mode": "router_specialist",
+            "X-Agent-Local-Router-Model": "router-nano",
+            "X-Agent-Local-Specialist-Model": "specialist-nano",
+            "X-Agent-Local-Specialist-Fallback-Enabled": "true",
+            "X-Agent-Local-Specialist-Fallback-Model": "gpt-5.5",
+        },
         json={
             "message": "Trace the exact local request values.",
             "conversation_id": "conv-local-trace-route",
@@ -1105,7 +1152,15 @@ def test_agent_chat_route_writes_local_raw_trace(
     assert trace_payload["route"]["outcome"] == "succeeded"
     assert trace_payload["timings_ms"]["agent_runner_ms"] == 123.4
     assert trace_payload["route"]["requested_model"] == "gpt-5.4-mini"
+    assert trace_payload["route"]["requested_execution_mode"] == "router_specialist"
+    assert trace_payload["route"]["requested_router_model"] == "router-nano"
+    assert trace_payload["route"]["requested_specialist_model"] == "specialist-nano"
     assert captured_model_overrides == ["gpt-5.4-mini"]
+    override = captured_execution_overrides[0]
+    assert getattr(override, "execution_mode") == "router_specialist"
+    assert getattr(override, "router_model") == "router-nano"
+    assert getattr(override, "specialist_model") == "specialist-nano"
+    assert getattr(override, "specialist_fallback_enabled") is True
 
 
 def test_agent_chat_replays_completed_response_for_same_idempotency_key(
@@ -1412,7 +1467,7 @@ async def test_agent_trace_adds_only_safe_correlation_metadata(
     assert response.message == "처리했어요."
     assert captured_trace["workflow_name"] == "mwobarellae_action_agent"
     assert captured_trace["group_id"] == "conv-trace-1"
-    assert captured_trace["metadata"] == metadata
+    assert captured_trace["metadata"] == {**metadata, "authenticated": "true"}
     rendered_metadata = str(captured_trace["metadata"])
     assert "private@example.com" not in rendered_metadata
     assert "ord-private" not in rendered_metadata

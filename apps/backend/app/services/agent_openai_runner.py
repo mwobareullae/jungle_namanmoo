@@ -46,7 +46,11 @@ from app.services.agent_commerce_tools import (
     PREPARE_PRODUCT_CHECKOUT_TOOL,
 )
 from app.services.agent_cart_composer import COMPOSE_CART_TOOL
-from app.services.agent_address_tools import REGISTER_SHIPPING_ADDRESS_TOOL
+from app.services.agent_address_tools import (
+    REGISTER_SHIPPING_ADDRESS_TOOL,
+    get_shipping_address_clarification,
+    parse_shipping_address_details,
+)
 from app.services.agent_recommendation_tools import (
     AgentCategoryCode,
     AgentConcernId,
@@ -61,8 +65,21 @@ from app.services.agent_product_tools import (
 from app.services.agent_product_reference import apply_last_tool_result_reference
 from app.services.agent_review_tools import PREPARE_REVIEW_DRAFT_TOOL
 from app.services.agent_claim_tools import PREPARE_CLAIM_DRAFT_TOOL
-from app.services.agent_bulk_wishlist import BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL
+from app.services.agent_bulk_wishlist import (
+    BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+    MAX_BULK_WISHLIST_RANK,
+)
 from app.services.agent_local_trace import AgentLocalTrace
+from app.services.agent_orchestration import (
+    ROUTER_INSTRUCTIONS,
+    SPECIALIST_PROFILES,
+    RouteDecision,
+    build_router_input,
+    build_specialist_input,
+    normalize_route_decision,
+    select_specialist_tool_names,
+    validate_route_decision,
+)
 from app.services.agent_tool_dispatcher import execute_agent_tool
 from app.services.agent_policy import get_tool_policy
 from app.services.agent_runtime_control import AgentRuntimeControl
@@ -174,13 +191,13 @@ _CLARIFICATION_MESSAGES = {
     "AGENT_PRODUCT_REFERENCE_NOT_FOUND": "해당 순위의 상품을 찾지 못했어요. 다른 순위를 알려주세요.",
 }
 EXPLICIT_BULK_WISHLIST_INSTRUCTIONS = """
-Handle exactly one request type: preview a bulk wishlist action for products within a
-popular-rank range that contain a named ingredient. Call
-bulk_wishlist_by_popular_ingredient exactly once. Extract ingredient_name and
-rank_limit from the user's Korean request. Use window_days=7 unless the user states a
-different period. Do not call another tool, infer product IDs, or perform the write;
-the backend resolves current products and requires confirmation before any wishlist
-change.
+Handle exactly one popular-rank based wishlist batch request. Call
+bulk_wishlist_by_popular_ingredient exactly once. Extract a rank_limit from 1 through
+50; one or more named ingredients; all/any ingredient semantics when stated; category;
+and min/max price when stated. Use window_days=7 unless the user states a different
+period. Do not silently shrink a requested rank. Do not call another tool, infer
+product IDs, or perform the write; the backend resolves current products and requires
+confirmation before any wishlist change.
 """
 
 
@@ -197,6 +214,10 @@ _EXPECTED_TOOL_ERRORS: dict[str, tuple[str, str]] = {
     "AGENT_CANCELABLE_ORDER_NOT_FOUND": ("AGENT_ORDER_NOT_CANCELABLE", "취소할 수 있는 최근 주문을 찾지 못했어요."),
     "AGENT_CART_COMPOSITION_NOT_FOUND": ("AGENT_CART_COMPOSITION_NOT_FOUND", "조건에 맞는 상품 조합을 찾지 못했어요."),
     "AGENT_CART_BUDGET_NOT_FOUND": ("AGENT_CART_BUDGET_NOT_FOUND", "예산 안에서 요청한 상품 조합을 찾지 못했어요."),
+    "AGENT_BULK_WISHLIST_RANK_LIMIT": (
+        "AGENT_BULK_WISHLIST_RANK_LIMIT",
+        "인기 상품은 50위까지만 한 번에 확인할 수 있어요. 50위 이하로 알려주세요.",
+    ),
     "AGENT_REVIEW_NOT_AVAILABLE": ("AGENT_REVIEW_NOT_AVAILABLE", "작성할 수 있는 구매 리뷰 상품을 찾지 못했어요."),
     "AGENT_CLAIM_NOT_AVAILABLE": ("AGENT_CLAIM_NOT_AVAILABLE", "현재 신청 가능한 주문 상품을 찾지 못했어요."),
     "AGENT_CLAIM_ITEM_NOT_AVAILABLE": ("AGENT_CLAIM_NOT_AVAILABLE", "현재 신청 가능한 주문 상품을 찾지 못했어요."),
@@ -402,8 +423,13 @@ class CommerceAgentContext:
     agent_context: AgentContext = field(default_factory=AgentContext)
     user_message: str = ""
     last_tool_result: AgentLastToolResult | None = None
+    router_action: AgentToolName | None = None
+    router_target_scope: str = "none"
+    router_reference_position: Literal["last"] | None = None
+    router_reference_rank: int | None = None
     last_tool_response: AgentChatResponse | None = None
     local_trace: AgentLocalTrace | None = None
+    active_agent_stage: Literal["single", "specialist", "fallback"] = "single"
     tool_execution_ms: float = 0.0
     tool_reference_resolve_ms: float = 0.0
     tool_dispatch_ms: float = 0.0
@@ -531,8 +557,116 @@ class AgentWorkflowTiming:
     tool_reference_resolve_ms: float = 0.0
     tool_dispatch_ms: float = 0.0
     tool_response_serialize_ms: float = 0.0
+    final_response_ms: float = 0.0
+    execution_mode: Literal["single", "router_specialist"] = "single"
+    fast_path_name: str | None = None
+    router_model: str | None = None
+    router_ms: float = 0.0
+    router_route: str | None = None
+    router_confidence: str | None = None
+    router_input_bytes: int | None = None
+    router_input_tokens: int | None = None
+    router_output_tokens: int | None = None
+    router_estimated_cost: float | None = None
+    specialist_name: str | None = None
+    specialist_model: str | None = None
+    specialist_ms: float = 0.0
+    specialist_tool_count: int | None = None
+    specialist_input_bytes: int | None = None
+    specialist_input_tokens: int | None = None
+    specialist_output_tokens: int | None = None
+    specialist_estimated_cost: float | None = None
+    fallback_enabled: bool = False
+    fallback_configured_model: str | None = None
+    fallback_used: bool = False
+    fallback_reason: str | None = None
+    fallback_model: str | None = None
+    fallback_ms: float = 0.0
+    fallback_input_tokens: int | None = None
+    fallback_output_tokens: int | None = None
+    fallback_estimated_cost: float | None = None
+    tool_validation_failed: bool = False
     global_slot_acquired: bool = False
     global_slot_rejected: bool = False
+
+    def record_stage(
+        self,
+        *,
+        stage: Literal["router", "specialist", "fallback"],
+        model: str,
+        duration_ms: float,
+        input_bytes: int,
+        tool_count: int,
+        usage: Mapping[str, Any],
+        estimated_cost: Mapping[str, Any],
+        specialist_name: str | None = None,
+    ) -> None:
+        input_tokens = _usage_int(usage, "input_tokens")
+        output_tokens = _usage_int(usage, "output_tokens")
+        cost = estimated_cost.get("estimated_cost_usd")
+        estimated_cost_usd = float(cost) if isinstance(cost, (int, float)) else None
+        if stage == "router":
+            self.router_model = model
+            self.router_ms += duration_ms
+            self.router_input_bytes = input_bytes
+            self.router_input_tokens = input_tokens
+            self.router_output_tokens = output_tokens
+            self.router_estimated_cost = estimated_cost_usd
+            return
+        if stage == "specialist":
+            self.specialist_name = specialist_name
+            self.specialist_model = model
+            self.specialist_ms += duration_ms
+            self.specialist_tool_count = tool_count
+            self.specialist_input_bytes = input_bytes
+            self.specialist_input_tokens = input_tokens
+            self.specialist_output_tokens = output_tokens
+            self.specialist_estimated_cost = estimated_cost_usd
+            return
+        self.fallback_used = True
+        self.fallback_model = model
+        self.fallback_ms += duration_ms
+        self.fallback_input_tokens = input_tokens
+        self.fallback_output_tokens = output_tokens
+        self.fallback_estimated_cost = estimated_cost_usd
+
+    def telemetry_metadata(self) -> dict[str, str | int | float | bool | None]:
+        return {
+            "agent_execution_mode": self.execution_mode,
+            "agent_fast_path_name": self.fast_path_name,
+            "agent_router_model": self.router_model,
+            "agent_router_ms": round(self.router_ms, 2),
+            "agent_router_route": self.router_route,
+            "agent_router_confidence": self.router_confidence,
+            "agent_router_input_bytes": self.router_input_bytes,
+            "agent_router_input_tokens": self.router_input_tokens,
+            "agent_router_output_tokens": self.router_output_tokens,
+            "agent_router_estimated_cost": self.router_estimated_cost,
+            "agent_specialist_name": self.specialist_name,
+            "agent_specialist_model": self.specialist_model,
+            "agent_specialist_ms": round(self.specialist_ms, 2),
+            "agent_specialist_tool_count": self.specialist_tool_count,
+            "agent_specialist_input_bytes": self.specialist_input_bytes,
+            "agent_specialist_input_tokens": self.specialist_input_tokens,
+            "agent_specialist_output_tokens": self.specialist_output_tokens,
+            "agent_specialist_estimated_cost": self.specialist_estimated_cost,
+            "agent_fallback_enabled": self.fallback_enabled,
+            "agent_fallback_configured_model": self.fallback_configured_model,
+            "agent_fallback_used": self.fallback_used,
+            "agent_fallback_reason": self.fallback_reason,
+            "agent_fallback_model": self.fallback_model,
+            "agent_fallback_ms": round(self.fallback_ms, 2),
+            "agent_fallback_input_tokens": self.fallback_input_tokens,
+            "agent_fallback_output_tokens": self.fallback_output_tokens,
+            "agent_fallback_estimated_cost": self.fallback_estimated_cost,
+            "agent_tool_validation_failed": self.tool_validation_failed,
+            "agent_final_response_ms": round(self.final_response_ms, 2),
+        }
+
+
+def _usage_int(usage: Mapping[str, Any], key: str) -> int | None:
+    value = usage.get(key)
+    return int(value) if isinstance(value, (int, float)) else None
 
 
 @asynccontextmanager
@@ -547,6 +681,105 @@ async def _global_slot_context(
 
 
 _LOCAL_MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+@dataclass(frozen=True)
+class LocalAgentExecutionOverride:
+    """Local trace-only mode and model overrides used by the evaluation harness."""
+
+    execution_mode: Literal["single", "router_specialist"] | None = None
+    router_model: str | None = None
+    specialist_model: str | None = None
+    specialist_fallback_enabled: bool | None = None
+    specialist_fallback_model: str | None = None
+
+
+def build_local_agent_execution_override(
+    *,
+    execution_mode: str | None,
+    router_model: str | None,
+    specialist_model: str | None,
+    specialist_fallback_enabled: str | None,
+    specialist_fallback_model: str | None,
+) -> LocalAgentExecutionOverride | None:
+    """Validate local-only evaluator controls without mutating app settings."""
+
+    provided = (
+        execution_mode,
+        router_model,
+        specialist_model,
+        specialist_fallback_enabled,
+        specialist_fallback_model,
+    )
+    if not any(value is not None and value.strip() for value in provided):
+        return None
+    if (
+        settings.app_env.strip().lower() != "local"
+        or not settings.openai_agent_local_trace_enabled
+    ):
+        raise ApiError(
+            400,
+            "LOCAL_AGENT_EXECUTION_OVERRIDE_NOT_AVAILABLE",
+            "Local Agent execution overrides are available only with local raw trace enabled.",
+        )
+
+    normalized_mode = _normalize_local_execution_mode(execution_mode)
+    return LocalAgentExecutionOverride(
+        execution_mode=normalized_mode,
+        router_model=_normalize_local_model_name(router_model, "router model"),
+        specialist_model=_normalize_local_model_name(specialist_model, "specialist model"),
+        specialist_fallback_enabled=_normalize_local_bool(
+            specialist_fallback_enabled,
+            "specialist fallback enabled",
+        ),
+        specialist_fallback_model=_normalize_local_model_name(
+            specialist_fallback_model,
+            "specialist fallback model",
+        ),
+    )
+
+
+def _normalize_local_execution_mode(
+    value: str | None,
+) -> Literal["single", "router_specialist"] | None:
+    if value is None or not value.strip():
+        return None
+    normalized = value.strip().lower()
+    if normalized not in {"single", "router_specialist"}:
+        raise ApiError(
+            400,
+            "INVALID_LOCAL_AGENT_EXECUTION_MODE",
+            "Local Agent execution mode must be single or router_specialist.",
+        )
+    return normalized  # type: ignore[return-value]
+
+
+def _normalize_local_model_name(value: str | None, label: str) -> str | None:
+    if value is None or not value.strip():
+        return None
+    normalized = value.strip()
+    if not _LOCAL_MODEL_NAME_PATTERN.fullmatch(normalized):
+        raise ApiError(
+            400,
+            "INVALID_LOCAL_MODEL_OVERRIDE",
+            f"Local {label} must be a valid model identifier.",
+        )
+    return normalized
+
+
+def _normalize_local_bool(value: str | None, label: str) -> bool | None:
+    if value is None or not value.strip():
+        return None
+    normalized = value.strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise ApiError(
+        400,
+        "INVALID_LOCAL_AGENT_EXECUTION_OVERRIDE",
+        f"Local {label} must be true or false.",
+    )
 
 
 def _resolve_agent_model(model_override: str | None) -> tuple[str, str]:
@@ -587,18 +820,77 @@ async def run_openai_agent_chat(
     trace_metadata: Mapping[str, Any] | None = None,
     local_trace: AgentLocalTrace | None = None,
     model_override: str | None = None,
+    execution_override: LocalAgentExecutionOverride | None = None,
+) -> AgentChatResponse:
+    """Run the configured action-Agent execution path.
+
+    ``single`` is intentionally the default and preserves the original Agent
+    behavior. ``router_specialist`` is opt-in until its quality evaluation is
+    accepted, so changing the feature flag is sufficient to roll it back.
+    """
+
+    trace_metadata = _normalize_trace_metadata(trace_metadata)
+    execution_mode = (
+        execution_override.execution_mode
+        if execution_override is not None and execution_override.execution_mode is not None
+        else settings.openai_agent_execution_mode
+    )
+    if workflow_timing is not None:
+        workflow_timing.execution_mode = execution_mode
+
+    single_model_override = model_override
+    if single_model_override is None and execution_override is not None:
+        single_model_override = (
+            execution_override.specialist_model or execution_override.router_model
+        )
+    if execution_mode == "router_specialist":
+        return await _run_router_specialist_agent_chat(
+            session,
+            request,
+            user=user,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            runtime_control=runtime_control,
+            workflow_timing=workflow_timing,
+            trace_metadata=trace_metadata,
+            local_trace=local_trace,
+            model_override=model_override,
+            execution_override=execution_override,
+        )
+    return await _run_single_agent_chat(
+        session,
+        request,
+        user=user,
+        request_id=request_id,
+        session_id=session_id,
+        anonymous_user_id=anonymous_user_id,
+        anonymous_cart_id=anonymous_cart_id,
+        runtime_control=runtime_control,
+        workflow_timing=workflow_timing,
+        trace_metadata=trace_metadata,
+        local_trace=local_trace,
+        model_override=single_model_override,
+    )
+
+
+async def _run_single_agent_chat(
+    session: Session,
+    request: AgentChatRequest,
+    *,
+    user: User | None = None,
+    request_id: str | None = None,
+    session_id: str | None = None,
+    anonymous_user_id: str | None = None,
+    anonymous_cart_id: str | None = None,
+    runtime_control: AgentRuntimeControl | None = None,
+    workflow_timing: AgentWorkflowTiming | None = None,
+    trace_metadata: Mapping[str, Any] | None = None,
+    local_trace: AgentLocalTrace | None = None,
+    model_override: str | None = None,
 ) -> AgentChatResponse:
     explicit_bulk_wishlist = _is_explicit_popular_ingredient_wishlist_request(request.message)
-    if explicit_bulk_wishlist and user is None:
-        if local_trace is not None:
-            local_trace.capture_short_circuit(
-                reason="bulk_wishlist_auth_required",
-                configured_model=settings.openai_agent_model,
-            )
-        return _authentication_required_response(
-            request.conversation_id,
-            tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
-        )
 
     generic_clarification = _get_generic_clarification(request.message)
     if generic_clarification:
@@ -637,6 +929,19 @@ async def run_openai_agent_chat(
             anonymous_user_id=anonymous_user_id,
             anonymous_cart_id=anonymous_cart_id,
             last_tool_result=request.last_tool_result,
+        )
+
+    shipping_address_clarification = get_shipping_address_clarification(request.message)
+    if shipping_address_clarification:
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="shipping_address_invalid_postal_code",
+                configured_model=settings.openai_agent_model,
+            )
+        return _clarification_response(
+            request.conversation_id,
+            shipping_address_clarification,
+            tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
         )
 
     simple_refinement_arguments = _get_simple_recommendation_refinement_arguments(request)
@@ -1035,6 +1340,758 @@ async def run_openai_agent_chat(
     return response
 
 
+async def _run_router_specialist_agent_chat(
+    session: Session,
+    request: AgentChatRequest,
+    *,
+    user: User | None,
+    request_id: str | None,
+    session_id: str | None,
+    anonymous_user_id: str | None,
+    anonymous_cart_id: str | None,
+    runtime_control: AgentRuntimeControl | None,
+    workflow_timing: AgentWorkflowTiming | None,
+    trace_metadata: Mapping[str, Any] | None,
+    local_trace: AgentLocalTrace | None,
+    model_override: str | None,
+    execution_override: LocalAgentExecutionOverride | None,
+) -> AgentChatResponse:
+    """Run a tool-free route decision followed by one narrow Specialist Agent.
+
+    The Redis lease, process-local queue slot, and timeout deadline cover the
+    entire workflow.  A Router or Specialist failure is never redirected to the
+    legacy single-Agent path, which keeps a rollback explicit and observable.
+    """
+
+    router_model, specialist_model, model_source = _resolve_router_specialist_models(
+        model_override,
+        execution_override,
+    )
+    fallback_enabled = (
+        execution_override.specialist_fallback_enabled
+        if execution_override is not None
+        and execution_override.specialist_fallback_enabled is not None
+        else settings.openai_agent_specialist_fallback_enabled
+    )
+    fallback_model = (
+        execution_override.specialist_fallback_model
+        if execution_override is not None
+        and execution_override.specialist_fallback_model is not None
+        else settings.openai_agent_specialist_fallback_model
+    )
+    fallback_model_source = (
+        "local_execution_override"
+        if execution_override is not None
+        and execution_override.specialist_fallback_model is not None
+        else "configured_fallback"
+    )
+    if not settings.openai_api_key:
+        raise ApiError(503, "AGENT_OPENAI_NOT_CONFIGURED", "AI 에이전트 설정을 확인해 주세요.")
+    if not router_model or not specialist_model:
+        raise ApiError(503, "AGENT_OPENAI_MODEL_NOT_CONFIGURED", "AI 에이전트 모델 설정을 확인해 주세요.")
+
+    try:
+        from agents import Agent, ModelSettings, Runner, trace
+    except ImportError as exc:
+        raise ApiError(503, "AGENT_SDK_NOT_INSTALLED", "AI 에이전트 실행 환경을 사용할 수 없어요.") from exc
+
+    context = CommerceAgentContext(
+        session=session,
+        user=user,
+        conversation_id=request.conversation_id,
+        request_id=request_id,
+        session_id=session_id,
+        anonymous_user_id=anonymous_user_id,
+        anonymous_cart_id=anonymous_cart_id,
+        agent_context=request.context,
+        user_message=request.message,
+        last_tool_result=request.last_tool_result,
+        local_trace=local_trace,
+    )
+    allowed_tool_names = _select_agent_tool_names(
+        user=user,
+        context=request.context,
+        last_tool_result=request.last_tool_result,
+    )
+    router_input = build_router_input(request, user=user)
+    router_agent = Agent[CommerceAgentContext](
+        name="mwobarellae_action_router",
+        instructions=ROUTER_INSTRUCTIONS,
+        model=router_model,
+        model_settings=ModelSettings(),
+        output_type=RouteDecision,
+    )
+    started_at = current_time()
+    slot_wait_started_at = current_time()
+    stage_results: list[tuple[str, str, Any]] = []
+    fallback_reason: str | None = None
+    decision: RouteDecision | None = None
+    response: AgentChatResponse | None = None
+
+    if workflow_timing is not None:
+        workflow_timing.execution_mode = "router_specialist"
+        workflow_timing.fallback_enabled = fallback_enabled
+        workflow_timing.fallback_configured_model = fallback_model if fallback_enabled else None
+
+    if local_trace is not None:
+        local_trace.capture_agent_configuration(
+            stage="router",
+            agent_name=router_agent.name,
+            model=router_model,
+            configured_model=settings.openai_agent_router_model,
+            model_source=model_source,
+            instructions=ROUTER_INSTRUCTIONS,
+            model_settings={},
+            tool_use_behavior="none",
+            selected_tools=(),
+            agent_input=router_input,
+        )
+        local_trace.set_route_value("agent_execution_mode", "router_specialist")
+        local_trace.set_route_value("router_model", router_model)
+
+    try:
+        async with _global_slot_context(runtime_control) as lease:
+            if workflow_timing is not None:
+                workflow_timing.global_slot_wait_ms = elapsed_ms(slot_wait_started_at)
+                if lease is not None:
+                    workflow_timing.global_slot_acquire_ms = round(
+                        float(getattr(lease, "acquire_ms", 0.0)),
+                        2,
+                    )
+                    workflow_timing.global_slot_acquired = True
+
+            workflow_started_at = current_time()
+            deadline = time.monotonic() + max(float(settings.openai_agent_timeout_seconds), 0.1)
+            try:
+                # Router, Specialist, and the optional fallback occupy one local
+                # slot. Releasing it between the calls would let one workflow
+                # exceed the configured local admission budget under concurrency.
+                async with _OPENAI_CONCURRENCY_LIMITER.limit(workflow_timing=workflow_timing):
+                    router_result = await _run_router_specialist_stage(
+                        runner=Runner,
+                        trace_factory=trace,
+                        agent=router_agent,
+                        agent_input=router_input,
+                        context=context,
+                        deadline=deadline,
+                        stage="router",
+                        model=router_model,
+                        request_id=request_id,
+                        trace_metadata=trace_metadata,
+                        workflow_timing=workflow_timing,
+                        input_bytes=len(router_input.encode("utf-8")),
+                        tool_count=0,
+                    )
+                    stage_results.append(("router", router_model, router_result))
+                    try:
+                        decision = RouteDecision.model_validate(router_result.final_output)
+                    except Exception as exc:
+                        raise ApiError(
+                            503,
+                            "AGENT_ROUTER_INVALID_OUTPUT",
+                            "요청을 처리할 경로를 결정하지 못했어요. 잠시 후 다시 시도해 주세요.",
+                        ) from exc
+
+                    raw_target_scope = decision.target_scope
+                    decision = normalize_route_decision(decision, request=request)
+
+                    if workflow_timing is not None:
+                        workflow_timing.router_route = decision.route
+                        workflow_timing.router_confidence = decision.confidence
+                    if local_trace is not None:
+                        local_trace.set_stage_value("router", "route", decision.route)
+                        local_trace.set_stage_value("router", "action", decision.action)
+                        local_trace.set_stage_value("router", "target_scope", decision.target_scope)
+                        if decision.target_scope != raw_target_scope:
+                            local_trace.set_stage_value(
+                                "router", "target_scope_original", raw_target_scope
+                            )
+                            local_trace.set_stage_value(
+                                "router", "target_scope_normalized", True
+                            )
+                        local_trace.set_stage_value("router", "confidence", decision.confidence)
+
+                    route_error = validate_route_decision(
+                        decision,
+                        request=request,
+                        user=user,
+                        allowed_tool_names=allowed_tool_names,
+                    )
+                    if decision.route in {"bulk_wishlist", "order_after_sales"} and user is None:
+                        profile = SPECIALIST_PROFILES[decision.route]
+                        response = _authentication_required_response(
+                            request.conversation_id,
+                            tool_name=profile.tool_names[0],
+                        )
+                    elif decision.route == "clarification":
+                        response = _clarification_response(
+                            request.conversation_id,
+                            "요청하신 작업을 조금 더 구체적으로 알려주세요.",
+                        )
+                    elif route_error is not None:
+                        response = _clarification_response(request.conversation_id, route_error)
+                    else:
+                        context.router_action = decision.action
+                        context.router_target_scope = decision.target_scope
+                        context.router_reference_position = decision.reference_position
+                        context.router_reference_rank = decision.reference_rank
+                        profile = SPECIALIST_PROFILES[decision.route]
+                        specialist_tool_names = select_specialist_tool_names(
+                            decision,
+                            request=request,
+                            allowed_tool_names=allowed_tool_names,
+                        )
+                        selected_tools = [_AGENT_TOOLS_BY_NAME[name] for name in specialist_tool_names]
+                        specialist_input = build_specialist_input(request, decision)
+                        specialist_agent = Agent[CommerceAgentContext](
+                            name=f"mwobarellae_{profile.name}_specialist",
+                            instructions=profile.instructions,
+                            model=specialist_model,
+                            model_settings=ModelSettings(tool_choice="auto"),
+                            tool_use_behavior="stop_on_first_tool",
+                            tools=selected_tools,
+                        )
+                        if local_trace is not None:
+                            local_trace.capture_agent_configuration(
+                                stage="specialist",
+                                agent_name=specialist_agent.name,
+                                model=specialist_model,
+                                configured_model=settings.openai_agent_specialist_model,
+                                model_source=model_source,
+                                instructions=profile.instructions,
+                                model_settings={"tool_choice": "auto"},
+                                tool_use_behavior="stop_on_first_tool",
+                                selected_tools=selected_tools,
+                                agent_input=specialist_input,
+                            )
+                            local_trace.set_route_value("router_route", decision.route)
+                            local_trace.set_route_value("router_action", decision.action)
+                            local_trace.set_route_value("router_target_scope", decision.target_scope)
+                            local_trace.set_route_value("router_confidence", decision.confidence)
+                            local_trace.set_route_value("specialist_name", profile.name)
+
+                        specialist_result: Any | None = None
+                        specialist_error: Exception | None = None
+                        try:
+                            context.active_agent_stage = "specialist"
+                            specialist_result = await _run_router_specialist_stage(
+                                runner=Runner,
+                                trace_factory=trace,
+                                agent=specialist_agent,
+                                agent_input=specialist_input,
+                                context=context,
+                                deadline=deadline,
+                                stage="specialist",
+                                model=specialist_model,
+                                request_id=request_id,
+                                trace_metadata=trace_metadata,
+                                workflow_timing=workflow_timing,
+                                input_bytes=len(specialist_input.encode("utf-8")),
+                                tool_count=len(selected_tools),
+                                specialist_name=profile.name,
+                            )
+                            stage_results.append(("specialist", specialist_model, specialist_result))
+                        except Exception as exc:
+                            specialist_error = exc
+
+                        if (
+                            workflow_timing is not None
+                            and context.last_tool_response is not None
+                            and context.last_tool_response.error is not None
+                            and context.last_tool_response.error.code
+                            == "AGENT_TOOL_ARGUMENT_INVALID"
+                        ):
+                            workflow_timing.tool_validation_failed = True
+
+                        fallback_reason = _specialist_fallback_reason(
+                            enabled=fallback_enabled,
+                            decision=decision,
+                            context=context,
+                            specialist_result=specialist_result,
+                            specialist_error=specialist_error,
+                            deadline=deadline,
+                        )
+                        if fallback_reason is not None:
+                            # An invalid tool request did not perform a domain mutation;
+                            # clearing the local response lets the fallback attempt the
+                            # same Specialist once with the server-selected tool subset.
+                            context.last_tool_response = None
+                            fallback_agent = Agent[CommerceAgentContext](
+                                name=f"mwobarellae_{profile.name}_specialist_fallback",
+                                instructions=profile.instructions,
+                                model=fallback_model,
+                                model_settings=ModelSettings(tool_choice="auto"),
+                                tool_use_behavior="stop_on_first_tool",
+                                tools=selected_tools,
+                            )
+                            context.active_agent_stage = "fallback"
+                            if workflow_timing is not None:
+                                workflow_timing.fallback_reason = fallback_reason
+                            if local_trace is not None:
+                                local_trace.capture_agent_configuration(
+                                    stage="fallback",
+                                    agent_name=fallback_agent.name,
+                                    model=fallback_model,
+                                    configured_model=settings.openai_agent_specialist_fallback_model,
+                                    model_source=fallback_model_source,
+                                    instructions=profile.instructions,
+                                    model_settings={"tool_choice": "auto"},
+                                    tool_use_behavior="stop_on_first_tool",
+                                    selected_tools=selected_tools,
+                                    agent_input=specialist_input,
+                                )
+                            fallback_result = await _run_router_specialist_stage(
+                                runner=Runner,
+                                trace_factory=trace,
+                                agent=fallback_agent,
+                                agent_input=specialist_input,
+                                context=context,
+                                deadline=deadline,
+                                stage="fallback",
+                                model=fallback_model,
+                                request_id=request_id,
+                                trace_metadata=trace_metadata,
+                                workflow_timing=workflow_timing,
+                                input_bytes=len(specialist_input.encode("utf-8")),
+                                tool_count=len(selected_tools),
+                                specialist_name=profile.name,
+                            )
+                            stage_results.append(("fallback", fallback_model, fallback_result))
+                            specialist_result = fallback_result
+                            specialist_error = None
+
+                        if specialist_error is not None:
+                            raise specialist_error
+
+                        response_started_at = current_time()
+                        if context.last_tool_response is not None:
+                            response = context.last_tool_response
+                        else:
+                            response = AgentChatResponse(
+                                conversation_id=_resolve_conversation_id(request.conversation_id),
+                                message=_normalize_agent_text(
+                                    getattr(specialist_result, "final_output", None)
+                                )
+                                or "요청에 맞는 실행 방법을 찾지 못했어요. 조건을 조금 더 알려주세요.",
+                                ui_action=AgentUiAction(),
+                                items=[],
+                            )
+                        if workflow_timing is not None:
+                            workflow_timing.final_response_ms = elapsed_ms(response_started_at)
+                    _OPENAI_CIRCUIT_BREAKER.record_success()
+            finally:
+                if workflow_timing is not None:
+                    workflow_timing.llm_workflow_ms = elapsed_ms(workflow_started_at)
+                    workflow_timing.tool_execution_ms = context.tool_execution_ms
+                    workflow_timing.tool_reference_resolve_ms = context.tool_reference_resolve_ms
+                    workflow_timing.tool_dispatch_ms = context.tool_dispatch_ms
+                    workflow_timing.tool_response_serialize_ms = context.tool_response_serialize_ms
+                    workflow_timing.agent_model_and_orchestration_ms = max(
+                        workflow_timing.agent_runner_ms
+                        - workflow_timing.local_queue_wait_ms
+                        - context.tool_reference_resolve_ms
+                        - context.tool_dispatch_ms
+                        - context.tool_response_serialize_ms,
+                        0.0,
+                    )
+    except Exception as exc:
+        if workflow_timing is not None and not workflow_timing.global_slot_acquired:
+            workflow_timing.global_slot_wait_ms = elapsed_ms(slot_wait_started_at)
+            workflow_timing.global_slot_rejected = isinstance(exc, ApiError) and exc.code == "AGENT_OPENAI_BUSY"
+        failure_kind = _classify_openai_failure(exc)
+        _OPENAI_CIRCUIT_BREAKER.record_failure(failure_kind)
+        _log_openai_failure_counter(
+            exc,
+            request_id=request_id,
+            duration_ms=elapsed_ms(started_at),
+            model=router_model,
+        )
+        if isinstance(exc, ApiError):
+            raise
+        raise _to_agent_execution_error(exc) from exc
+
+    if decision is None or response is None:  # pragma: no cover - defensive invariant
+        raise RuntimeError("Router/Specialist workflow completed without a route response")
+
+    usage = _combine_agent_stage_usage(stage_results)
+    workflow_metadata = workflow_timing.telemetry_metadata() if workflow_timing is not None else {}
+    log_ai_call(
+        "agent_chat",
+        model="router_specialist",
+        duration_ms=elapsed_ms(started_at),
+        request_id=request_id,
+        usage=usage,
+        metadata={
+            "conversation_id": response.conversation_id,
+            "execution_mode": "router_specialist",
+            "router_model": router_model,
+            "router_route": decision.route,
+            "router_action": decision.action,
+            "router_target_scope": decision.target_scope,
+            "router_confidence": decision.confidence,
+            "specialist_model": specialist_model,
+            "specialist_name": decision.route,
+            "fallback_used": fallback_reason is not None,
+            "fallback_reason": fallback_reason,
+            "tool_called": response.tool_name is not None,
+            "tool_name": response.tool_name,
+            "item_count": len(response.items),
+            "ui_action_type": response.ui_action.type,
+            "tool_execution_ms": round(context.tool_execution_ms, 2),
+            **workflow_metadata,
+        },
+    )
+    return response
+
+
+def _try_router_specialist_fast_path(
+    session: Session,
+    request: AgentChatRequest,
+    *,
+    user: User | None,
+    request_id: str | None,
+    session_id: str | None,
+    anonymous_user_id: str | None,
+    anonymous_cart_id: str | None,
+    local_trace: AgentLocalTrace | None,
+    workflow_timing: AgentWorkflowTiming | None,
+) -> AgentChatResponse | None:
+    """Run only exact, deterministic fast paths before the Router.
+
+    Broad bulk-wishlist and multi-action regexes stay out of this path because
+    they can discard valid natural-language constraints.  Those requests are
+    intentionally routed through the Specialist.
+    """
+
+    generic_clarification = _get_generic_clarification(request.message)
+    if generic_clarification:
+        _record_fast_path(workflow_timing, "generic_clarification")
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="generic_clarification",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        return _clarification_response(request.conversation_id, generic_clarification)
+
+    shipping_address_arguments = _get_shipping_address_arguments(request)
+    if shipping_address_arguments is not None:
+        if user is None:
+            _record_fast_path(workflow_timing, "shipping_address_auth_required")
+            if local_trace is not None:
+                local_trace.capture_short_circuit(
+                    reason="shipping_address_auth_required",
+                    configured_model=settings.openai_agent_specialist_model,
+                )
+            return _authentication_required_response(
+                request.conversation_id,
+                tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+            )
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="shipping_address_details",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        _record_fast_path(workflow_timing, "shipping_address_details")
+        return execute_agent_tool(
+            session,
+            tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+            arguments=shipping_address_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            last_tool_result=request.last_tool_result,
+        )
+
+    shipping_address_clarification = get_shipping_address_clarification(request.message)
+    if shipping_address_clarification:
+        _record_fast_path(workflow_timing, "shipping_address_invalid_postal_code")
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="shipping_address_invalid_postal_code",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        return _clarification_response(
+            request.conversation_id,
+            shipping_address_clarification,
+            tool_name=REGISTER_SHIPPING_ADDRESS_TOOL,
+        )
+
+    current_product_checkout_arguments = _get_current_product_checkout_arguments(request)
+    if current_product_checkout_arguments is not None:
+        if user is None:
+            _record_fast_path(workflow_timing, "current_product_checkout_auth_required")
+            if local_trace is not None:
+                local_trace.capture_short_circuit(
+                    reason="current_product_checkout_auth_required",
+                    configured_model=settings.openai_agent_specialist_model,
+                )
+            return _authentication_required_response(
+                request.conversation_id,
+                tool_name=PREPARE_PRODUCT_CHECKOUT_TOOL,
+            )
+        _record_fast_path(workflow_timing, "current_product_checkout")
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="current_product_checkout",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        return execute_agent_tool(
+            session,
+            tool_name=PREPARE_PRODUCT_CHECKOUT_TOOL,
+            arguments=current_product_checkout_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            current_product_id=request.context.current_product_id,
+            last_tool_result=request.last_tool_result,
+        )
+
+    last_tool_result_checkout_arguments = _get_last_tool_result_product_checkout_arguments(request)
+    if last_tool_result_checkout_arguments is not None:
+        if user is None:
+            _record_fast_path(workflow_timing, "last_tool_result_product_checkout_auth_required")
+            if local_trace is not None:
+                local_trace.capture_short_circuit(
+                    reason="last_tool_result_product_checkout_auth_required",
+                    configured_model=settings.openai_agent_specialist_model,
+                )
+            return _authentication_required_response(
+                request.conversation_id,
+                tool_name=PREPARE_PRODUCT_CHECKOUT_TOOL,
+            )
+        _record_fast_path(workflow_timing, "last_tool_result_product_checkout")
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="last_tool_result_product_checkout",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        return execute_agent_tool(
+            session,
+            tool_name=PREPARE_PRODUCT_CHECKOUT_TOOL,
+            arguments=last_tool_result_checkout_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            last_tool_result=request.last_tool_result,
+        )
+
+    simple_refinement_arguments = _get_simple_recommendation_refinement_arguments(request)
+    if simple_refinement_arguments is not None:
+        _record_fast_path(workflow_timing, "simple_recommendation_refinement")
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="simple_recommendation_refinement",
+                configured_model=settings.openai_agent_specialist_model,
+            )
+        return execute_agent_tool(
+            session,
+            tool_name=REFINE_PRODUCT_RESULTS_TOOL,
+            arguments=simple_refinement_arguments,
+            user=user,
+            conversation_id=request.conversation_id,
+            request_id=request_id,
+            session_id=session_id,
+            anonymous_user_id=anonymous_user_id,
+            anonymous_cart_id=anonymous_cart_id,
+            last_tool_result=request.last_tool_result,
+        )
+    return None
+
+
+def _record_fast_path(
+    workflow_timing: AgentWorkflowTiming | None,
+    fast_path_name: str,
+) -> None:
+    if workflow_timing is not None:
+        workflow_timing.fast_path_name = fast_path_name
+
+
+def _resolve_router_specialist_models(
+    model_override: str | None,
+    execution_override: LocalAgentExecutionOverride | None,
+) -> tuple[str, str, str]:
+    if execution_override is not None:
+        router_model = execution_override.router_model or settings.openai_agent_router_model
+        specialist_model = (
+            execution_override.specialist_model or settings.openai_agent_specialist_model
+        )
+        if (
+            execution_override.router_model is not None
+            or execution_override.specialist_model is not None
+        ):
+            return router_model, specialist_model, "local_execution_override"
+    if model_override is not None and model_override.strip():
+        model, source = _resolve_agent_model(model_override)
+        return model, model, source
+    return (
+        settings.openai_agent_router_model,
+        settings.openai_agent_specialist_model,
+        "configured_router_specialist",
+    )
+
+
+async def _run_router_specialist_stage(
+    *,
+    runner: Any,
+    trace_factory: Any,
+    agent: Any,
+    agent_input: str,
+    context: CommerceAgentContext,
+    deadline: float,
+    stage: Literal["router", "specialist", "fallback"],
+    model: str,
+    request_id: str | None,
+    trace_metadata: Mapping[str, Any] | None,
+    workflow_timing: AgentWorkflowTiming | None,
+    input_bytes: int,
+    tool_count: int,
+    specialist_name: str | None = None,
+) -> Any:
+    remaining_seconds = deadline - time.monotonic()
+    if remaining_seconds <= 0:
+        raise TimeoutError("OpenAI request timeout budget exhausted")
+    _OPENAI_CIRCUIT_BREAKER.before_call()
+    started_at = current_time()
+    started_timestamp = datetime.now(UTC)
+    try:
+        async with asyncio.timeout(remaining_seconds):
+            with trace_factory(
+                f"mwobarellae_action_{stage}",
+                group_id=_trace_group_id(trace_metadata),
+                metadata={**dict(trace_metadata or {}), "agent_stage": stage},
+            ):
+                result = await runner.run(
+                    agent,
+                    input=agent_input,
+                    context=context,
+                    max_turns=1,
+                )
+    except Exception as exc:
+        duration_ms = elapsed_ms(started_at)
+        if context.local_trace is not None:
+            context.local_trace.record_runner_attempt(
+                stage=stage,
+                attempt=1,
+                duration_ms=duration_ms,
+                model=model,
+                started_at=started_timestamp,
+                completed_at=datetime.now(UTC),
+                error=exc,
+            )
+        log_ai_call(
+            f"agent_{stage}",
+            model=model,
+            duration_ms=duration_ms,
+            request_id=request_id,
+            success=False,
+            error=type(exc).__name__,
+            metadata={
+                "execution_mode": "router_specialist",
+                "agent_stage": stage,
+                "specialist_name": specialist_name,
+                "tool_count": tool_count,
+                "input_bytes": input_bytes,
+            },
+        )
+        raise
+
+    duration_ms = elapsed_ms(started_at)
+    usage_breakdown = extract_agents_usage_breakdown(result)
+    cost_estimate = estimate_ai_cost_breakdown(model, usage_breakdown)
+    if workflow_timing is not None:
+        workflow_timing.agent_runner_ms += duration_ms
+        workflow_timing.record_stage(
+            stage=stage,
+            model=model,
+            duration_ms=duration_ms,
+            input_bytes=input_bytes,
+            tool_count=tool_count,
+            usage=usage_breakdown,
+            estimated_cost=cost_estimate,
+            specialist_name=specialist_name,
+        )
+    if context.local_trace is not None:
+        context.local_trace.record_runner_attempt(
+            stage=stage,
+            attempt=1,
+            duration_ms=duration_ms,
+            model=model,
+            started_at=started_timestamp,
+            completed_at=datetime.now(UTC),
+        )
+        context.local_trace.capture_runner_result(
+            result,
+            stage=stage,
+            usage=getattr(result, "usage", None),
+            usage_breakdown=usage_breakdown,
+            cost_estimate=cost_estimate,
+        )
+        context.local_trace.set_timing(f"agent_{stage}_ms", duration_ms)
+    log_ai_call(
+        f"agent_{stage}",
+        model=model,
+        duration_ms=duration_ms,
+        request_id=request_id,
+        usage=usage_breakdown,
+        metadata={
+            "execution_mode": "router_specialist",
+            "agent_stage": stage,
+            "specialist_name": specialist_name,
+            "tool_count": tool_count,
+            "input_bytes": input_bytes,
+        },
+    )
+    return result
+
+
+def _specialist_fallback_reason(
+    *,
+    enabled: bool,
+    decision: RouteDecision,
+    context: CommerceAgentContext,
+    specialist_result: Any | None,
+    specialist_error: Exception | None,
+    deadline: float,
+) -> str | None:
+    if not enabled or decision.route == "clarification" or time.monotonic() >= deadline:
+        return None
+    if specialist_error is not None:
+        return "transient_model_error" if _is_retryable_openai_exception(specialist_error) else None
+    response = context.last_tool_response
+    if response is not None:
+        if response.error is not None and response.error.code == "AGENT_TOOL_ARGUMENT_INVALID":
+            return "tool_argument_validation_failed"
+        return None
+    if specialist_result is not None and SPECIALIST_PROFILES[decision.route].tool_names:
+        return "action_route_without_tool_call"
+    return None
+
+
+def _combine_agent_stage_usage(
+    stage_results: list[tuple[str, str, Any]],
+) -> dict[str, int | None]:
+    keys = ("input_tokens", "output_tokens", "total_tokens", "cached_input_tokens", "reasoning_tokens")
+    totals = {key: 0 for key in keys}
+    seen = {key: False for key in keys}
+    for _stage, _model, result in stage_results:
+        usage = extract_agents_usage_breakdown(result)
+        for key in keys:
+            value = usage.get(key)
+            if value is not None:
+                totals[key] += int(value)
+                seen[key] = True
+    return {key: totals[key] if seen[key] else None for key in keys}
+
+
 def _is_retryable_openai_exception(exc: Exception) -> bool:
     """Return true only for transient provider/network failures.
 
@@ -1079,6 +2136,22 @@ def _classify_openai_failure(
 def _trace_group_id(trace_metadata: Mapping[str, Any] | None) -> str | None:
     conversation_id = (trace_metadata or {}).get("conversation_id")
     return str(conversation_id) if conversation_id else None
+
+
+def _normalize_trace_metadata(metadata: Mapping[str, Any] | None) -> dict[str, str]:
+    """Convert trace metadata to the OpenAI Agents SDK string-only contract."""
+
+    normalized: dict[str, str] = {}
+    for key, value in (metadata or {}).items():
+        if value is None:
+            continue
+        if isinstance(value, bool):
+            normalized[str(key)] = "true" if value else "false"
+        elif isinstance(value, (str, int, float)):
+            normalized[str(key)] = str(value)
+        else:
+            normalized[str(key)] = json.dumps(value, ensure_ascii=False, sort_keys=True)
+    return normalized
 
 
 def _log_openai_failure_counter(
@@ -1265,11 +2338,15 @@ _SIMPLE_REFINEMENT_CATEGORY_CODES = {
     "토너": "toner",
     "로션": "lotion",
 }
-_SHIPPING_ADDRESS_DETAILS_PATTERN = re.compile(
-    r"^\s*(?P<recipient_name>[^,\n]{1,100})\s*,\s*"
-    r"(?P<phone>(?:\+?82[-\s]?)?01\d[-\s]?\d{3,4}[-\s]?\d{4})\s*,\s*"
-    r"(?P<postal_code>\d{5})\s*,\s*"
-    r"(?P<address1>[^,\n]{1,255})(?:\s*,\s*(?P<address2>[^,\n]{1,255}))?\s*$"
+
+_LAST_TOOL_RESULT_PRODUCT_CHECKOUT_PATTERN = re.compile(
+    r"^\s*(?:이\s*중(?:에서)?\s*)?마지막(?:\s*(?:상품|제품|거|것))?"
+    r"(?:\s*(?:을|를))?\s*(?:주문|구매|결제)(?:\s*(?:해주세요|해줘|할게|할래|해))?\s*[.!?]*\s*$"
+)
+
+_CURRENT_PRODUCT_CHECKOUT_PATTERN = re.compile(
+    r"(?:이거|이상품|현재상품)(?:을|를)?(?:주문|구매|결제)(?:해줘|해주세요|해|하자|할래|할게|쩜)?[!.?]*",
+    re.IGNORECASE,
 )
 
 
@@ -1309,17 +2386,12 @@ def _get_shipping_address_arguments(request: AgentChatRequest) -> dict[str, Any]
     if not request.context.cart_item_ids:
         return None
 
-    match = _SHIPPING_ADDRESS_DETAILS_PATTERN.fullmatch(request.message)
-    if match is None:
+    parsed = parse_shipping_address_details(request.message)
+    if parsed is None:
         return None
 
     return {
-        "recipient_name": match.group("recipient_name").strip(),
-        "phone": re.sub(r"[-\s]", "", match.group("phone")),
-        "postal_code": match.group("postal_code"),
-        "address1": match.group("address1").strip(),
-        "address2": (match.group("address2") or "").strip() or None,
-        "delivery_memo": None,
+        **parsed,
         "is_default": False,
         "continue_checkout": True,
         "cart_item_ids": request.context.cart_item_ids,
@@ -1339,6 +2411,8 @@ def _get_generic_clarification(message: str) -> str | None:
 
 
 def _get_multi_action_clarification(message: str) -> str | None:
+    if _is_explicit_popular_ingredient_wishlist_request(message):
+        return None
     if not _COMPLEX_MULTI_ACTION_PATTERN.search(message):
         return None
     return (
@@ -1348,6 +2422,8 @@ def _get_multi_action_clarification(message: str) -> str | None:
 
 
 def _get_popular_ingredient_wishlist_arguments(message: str) -> dict[str, Any] | None:
+    if _has_compound_popular_wishlist_criteria(message):
+        return None
     match = _POPULAR_INGREDIENT_WISHLIST_PATTERN.search(message)
     if match is None:
         return None
@@ -1356,7 +2432,6 @@ def _get_popular_ingredient_wishlist_arguments(message: str) -> dict[str, Any] |
         return None
     raw_rank = match.group("rank") or match.group("top")
     rank_limit = int(raw_rank) if raw_rank else 20
-    rank_limit = max(1, min(rank_limit, 20))
     window_days = 7
     if re.search(r"1\s*(?:일|day)", message):
         window_days = 1
@@ -1367,6 +2442,62 @@ def _get_popular_ingredient_wishlist_arguments(message: str) -> dict[str, Any] |
         "rank_limit": rank_limit,
         "window_days": window_days,
     }
+
+
+def _get_last_tool_result_product_checkout_arguments(
+    request: AgentChatRequest,
+) -> dict[str, Any] | None:
+    """Resolve only an unambiguous final item from the immediately previous tool result."""
+
+    if not _LAST_TOOL_RESULT_PRODUCT_CHECKOUT_PATTERN.fullmatch(request.message):
+        return None
+    last_tool_result = request.last_tool_result
+    if last_tool_result is None or not any(
+        item.item_type == "product" for item in last_tool_result.items
+    ):
+        return None
+    return {
+        "product_id": None,
+        "quantity": 1,
+        "reference_source": "last_tool_result",
+        "reference_rank": None,
+        "reference_position": "last",
+    }
+
+
+def _get_current_product_checkout_arguments(
+    request: AgentChatRequest,
+) -> dict[str, Any] | None:
+    """Resolve deictic checkout requests to the product currently on screen."""
+
+    current_product_id = request.context.current_product_id
+    if not current_product_id:
+        return None
+    normalized_message = re.sub(r"\s+", "", request.message)
+    if not _CURRENT_PRODUCT_CHECKOUT_PATTERN.fullmatch(normalized_message):
+        return None
+    return {
+        "product_id": current_product_id,
+        "quantity": 1,
+        "recommendation_id": None,
+        "recommendation_rank": None,
+        "reference_source": None,
+        "reference_rank": None,
+        "reference_position": None,
+    }
+
+
+def _has_compound_popular_wishlist_criteria(message: str) -> bool:
+    """Keep only truly single-ingredient requests on the deterministic fast path."""
+    return bool(
+        re.search(
+            r"(?:그리고|\s와\s|\s및\s|,|카테고리|세럼|크림|토너|로션|클렌저|선크림|"
+            r"마스크|피부|민감|건성|지성|복합성|수부지|중성|\d+\s*만원|\d+\s*원)"
+            r".{0,80}(?:찜|위시)|(?:찜|위시).{0,80}(?:그리고|\s와\s|\s및\s|,|카테고리|"
+            r"세럼|크림|토너|로션|클렌저|선크림|마스크|피부|민감|건성|지성|복합성|수부지|중성|\d+\s*만원|\d+\s*원)",
+            message,
+        )
+    )
 
 
 def _normalize_popular_ingredient_query(value: str) -> str:
@@ -1383,6 +2514,74 @@ def _normalize_popular_ingredient_query(value: str) -> str:
             break
     normalized = re.sub(r"\s*(?:상품|제품|중|에서|안에서|이내의|이내|내의|내|의)$", "", normalized)
     return normalized.strip()
+
+
+def _get_explicit_bulk_wishlist_rank_limit(message: str) -> int | None:
+    if not _is_explicit_popular_ingredient_wishlist_request(message):
+        return None
+
+    match = re.search(r"(?:인기|베스트|상위).{0,32}?(?P<rank>\d+)\s*(?:위|개)", message)
+    if match is None:
+        return None
+    return int(match.group("rank"))
+
+
+def _try_bulk_wishlist_preflight(
+    request: AgentChatRequest,
+    *,
+    user: User | None,
+    workflow_timing: AgentWorkflowTiming | None,
+    local_trace: AgentLocalTrace | None,
+    configured_model: str | None,
+) -> AgentChatResponse | None:
+    """Apply invariant bulk-wishlist policy before either Agent execution mode.
+
+    The rank boundary is a server policy, not a model decision.  Running it here
+    prevents a model from silently replacing an explicit rank above 50 with the
+    tool default and keeps ``single`` and ``router_specialist`` behavior aligned.
+    """
+
+    if not _is_explicit_popular_ingredient_wishlist_request(request.message):
+        return None
+
+    if user is None:
+        _record_fast_path(workflow_timing, "bulk_wishlist_auth_required")
+        if local_trace is not None:
+            local_trace.capture_short_circuit(
+                reason="bulk_wishlist_auth_required",
+                configured_model=configured_model,
+            )
+        return _authentication_required_response(
+            request.conversation_id,
+            tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+        )
+
+    rank_limit = _get_explicit_bulk_wishlist_rank_limit(request.message)
+    if rank_limit is None or rank_limit <= MAX_BULK_WISHLIST_RANK:
+        return None
+
+    _record_fast_path(workflow_timing, "bulk_wishlist_rank_limit")
+    if local_trace is not None:
+        local_trace.capture_short_circuit(
+            reason="bulk_wishlist_rank_limit",
+            configured_model=configured_model,
+        )
+    return _bulk_wishlist_rank_limit_response(request.conversation_id)
+
+
+def _bulk_wishlist_rank_limit_response(conversation_id: str | None) -> AgentChatResponse:
+    message = "인기 상품은 50위까지만 한 번에 확인할 수 있어요. 50위 이하로 알려주세요."
+    return AgentChatResponse(
+        conversation_id=_resolve_conversation_id(conversation_id),
+        message=message,
+        tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
+        ui_action=AgentUiAction(),
+        error=AgentError(
+            code="AGENT_BULK_WISHLIST_RANK_LIMIT",
+            message=message,
+            retryable=False,
+        ),
+    )
 
 
 def _clarification_response(conversation_id: str | None, message: str, *, tool_name: str | None = None) -> AgentChatResponse:
@@ -1455,6 +2654,11 @@ def _execute_tool(
         arguments=arguments,
         user_message=runtime_context.user_message,
         last_tool_result=runtime_context.last_tool_result,
+    )
+    resolved_arguments = _apply_router_target_constraints(
+        tool_name=tool_name,
+        arguments=resolved_arguments,
+        runtime_context=runtime_context,
     )
     reference_resolve_ms = elapsed_ms(reference_resolve_started_at)
     runtime_context.tool_reference_resolve_ms += reference_resolve_ms
@@ -1567,6 +2771,7 @@ def _execute_tool(
     runtime_context.tool_response_serialize_ms += response_serialize_ms
     if runtime_context.local_trace is not None:
         runtime_context.local_trace.record_tool_call(
+            agent_stage=runtime_context.active_agent_stage,
             tool_name=tool_name,
             model_arguments=arguments,
             resolved_arguments=resolved_arguments,
@@ -1578,6 +2783,107 @@ def _execute_tool(
             total_ms=elapsed_ms(started_at),
         )
     return sdk_return_value
+
+
+def _apply_router_target_constraints(
+    *,
+    tool_name: str,
+    arguments: dict[str, Any],
+    runtime_context: CommerceAgentContext,
+) -> dict[str, Any]:
+    """Bind Specialist arguments to the Router's server-validated target scope."""
+
+    normalized = dict(arguments)
+    scope = runtime_context.router_target_scope
+    if scope == "current_product":
+        current_product_id = runtime_context.agent_context.current_product_id
+        if current_product_id is None:
+            raise ApiError(400, "AGENT_CURRENT_PRODUCT_REQUIRED", "Current product is required.")
+        if tool_name in {
+            ADD_TO_CART_TOOL,
+            FIND_SIMILAR_PRODUCTS_TOOL,
+            PREPARE_PRODUCT_CHECKOUT_TOOL,
+        }:
+            normalized["product_id"] = current_product_id
+            if tool_name in {ADD_TO_CART_TOOL, PREPARE_PRODUCT_CHECKOUT_TOOL}:
+                normalized.update(
+                    {
+                        "reference_source": None,
+                        "reference_rank": None,
+                        "reference_position": None,
+                    }
+                )
+    elif scope == "selected_products":
+        selected_product_ids = runtime_context.agent_context.selected_product_ids
+        rank = runtime_context.router_reference_rank
+        if rank is None or rank < 1 or rank > len(selected_product_ids):
+            raise ApiError(
+                400,
+                "AGENT_SELECTED_PRODUCT_REFERENCE_REQUIRED",
+                "A selected product reference is required.",
+            )
+        if tool_name in {
+            ADD_TO_CART_TOOL,
+            FIND_SIMILAR_PRODUCTS_TOOL,
+            PREPARE_PRODUCT_CHECKOUT_TOOL,
+        }:
+            normalized["product_id"] = selected_product_ids[rank - 1]
+            if tool_name in {ADD_TO_CART_TOOL, PREPARE_PRODUCT_CHECKOUT_TOOL}:
+                normalized.update(
+                    {
+                        "reference_source": None,
+                        "reference_rank": None,
+                        "reference_position": None,
+                    }
+                )
+    elif scope == "cart_selection":
+        cart_item_ids = runtime_context.agent_context.cart_item_ids
+        if not cart_item_ids:
+            raise ApiError(400, "AGENT_CART_SELECTION_REQUIRED", "Cart selection is required.")
+        if tool_name in {PREPARE_CHECKOUT_TOOL, PREPARE_ORDER_TOOL}:
+            normalized["cart_item_ids"] = list(cart_item_ids)
+    elif scope == "last_tool_result":
+        if tool_name in {ADD_TO_CART_TOOL, PREPARE_PRODUCT_CHECKOUT_TOOL}:
+            normalized.update(
+                {
+                    "product_id": None,
+                    "reference_source": "last_tool_result",
+                    "reference_rank": runtime_context.router_reference_rank,
+                    "reference_position": runtime_context.router_reference_position,
+                }
+            )
+    elif scope == "recommendation_result" and tool_name == PREPARE_PRODUCT_CHECKOUT_TOOL:
+        normalized.update(
+            {
+                "product_id": None,
+                "recommendation_id": runtime_context.agent_context.recommendation_id,
+                "recommendation_rank": runtime_context.router_reference_rank,
+                "reference_source": None,
+                "reference_rank": None,
+                "reference_position": None,
+            }
+        )
+    elif scope == "visible_products" and tool_name in {
+        ADD_TO_CART_TOOL,
+        FIND_SIMILAR_PRODUCTS_TOOL,
+        PREPARE_PRODUCT_CHECKOUT_TOOL,
+    }:
+        visible_product_ids = runtime_context.agent_context.visible_product_ids
+        rank = runtime_context.router_reference_rank
+        if rank is None:
+            rank = 1 if len(visible_product_ids) == 1 else None
+        if rank is None or rank < 1 or rank > len(visible_product_ids):
+            raise ApiError(400, "AGENT_VISIBLE_PRODUCT_REFERENCE_REQUIRED", "A visible product reference is required.")
+        normalized["product_id"] = visible_product_ids[rank - 1]
+        if tool_name in {ADD_TO_CART_TOOL, PREPARE_PRODUCT_CHECKOUT_TOOL}:
+            normalized.update(
+                {
+                    "reference_source": None,
+                    "reference_rank": None,
+                    "reference_position": None,
+                }
+            )
+    return normalized
 
 
 try:
@@ -1598,7 +2904,9 @@ except ImportError:
 async def find_similar_products(
     ctx: RunContextWrapper[CommerceAgentContext],
     product_id: str,
-    limit: int = 10,
+    # Keep the OpenAI tool schema aligned with the dispatcher policy: the
+    # product-detail UI presents two alternatives, not a generic ten-item list.
+    limit: int = 2,
     min_price: int | None = None,
     max_price: int | None = None,
 ) -> str:
@@ -1676,7 +2984,7 @@ async def refine_product_results(
     page: int = 1,
     min_price: int | None = None,
     max_price: int | None = None,
-    category_code: str | None = None,
+    category_code: AgentCategoryCode | None = None,
     skin_type: str | None = None,
     sensitivity: str | None = None,
     effect_keywords: list[str] | None = None,
@@ -1878,16 +3186,26 @@ async def compose_cart(
 @function_tool(name_override=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL)
 async def explicit_bulk_wishlist_by_popular_ingredient(
     ctx: RunContextWrapper[CommerceAgentContext],
-    ingredient_name: str,
+    ingredient_name: str | None = None,
+    ingredient_names: list[str] | None = None,
+    ingredient_match_mode: Literal["all", "any"] = "all",
+    category: str | None = None,
+    price_min: int | None = None,
+    price_max: int | None = None,
     rank_limit: int = 20,
     window_days: Literal[1, 7, 30] = 7,
 ) -> str:
-    """Preview popular products containing one named ingredient before adding a wishlist batch."""
+    """Preview a 1-50 rank wishlist batch; the backend always asks for confirmation."""
     return _execute_tool(
         ctx,
         tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
         arguments={
             "ingredient_name": ingredient_name,
+            "ingredient_names": ingredient_names,
+            "ingredient_match_mode": ingredient_match_mode,
+            "category": category,
+            "price_min": price_min,
+            "price_max": price_max,
             "rank_limit": rank_limit,
             "window_days": window_days,
             "skin_type": None,
@@ -1900,6 +3218,11 @@ async def explicit_bulk_wishlist_by_popular_ingredient(
 async def bulk_wishlist_by_popular_ingredient(
     ctx: RunContextWrapper[CommerceAgentContext],
     ingredient_name: str | None = None,
+    ingredient_names: list[str] | None = None,
+    ingredient_match_mode: Literal["all", "any"] = "all",
+    category: str | None = None,
+    price_min: int | None = None,
+    price_max: int | None = None,
     rank_limit: int = 20,
     window_days: Literal[1, 7, 30] = 7,
     skin_type: Literal["건성", "지성", "복합성", "수부지", "중성"] | None = None,
@@ -1911,6 +3234,11 @@ async def bulk_wishlist_by_popular_ingredient(
         tool_name=BULK_WISHLIST_BY_POPULAR_INGREDIENT_TOOL,
         arguments={
             "ingredient_name": ingredient_name,
+            "ingredient_names": ingredient_names,
+            "ingredient_match_mode": ingredient_match_mode,
+            "category": category,
+            "price_min": price_min,
+            "price_max": price_max,
             "skin_type": skin_type,
             "sensitivity": sensitivity,
             "rank_limit": rank_limit,

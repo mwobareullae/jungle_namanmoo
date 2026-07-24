@@ -133,7 +133,10 @@ class AgentChatResponse(BaseModel):
     tool_call_id: str | None = Field(default=None, max_length=128)
     tool_name: AgentToolName | None = None
     ui_action: AgentUiAction = Field(default_factory=AgentUiAction)
-    items: list[AgentResponseItem] = Field(default_factory=list, max_length=20)
+    # Tool policies keep individual response sizes narrower where needed. The
+    # shared envelope must still represent a confirmation preview of up to the
+    # supported popular-rank range.
+    items: list[AgentResponseItem] = Field(default_factory=list, max_length=50)
     error: AgentError | None = None
 
 
