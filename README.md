@@ -178,51 +178,45 @@ flowchart LR
 
 ## 성능 최적화
 
-79,952개 상품에서 저장 피부 프로필, 스킨 테스트, 행동 이력과 리뷰 신호를 함께 계산하는 개인화 추천 요청을 단계별로 계측했습니다. 최종 결과만 캐시하기보다 병목 구간을 분리하고, 후보 탐색과 점수 입력 데이터 조회 구조를 순서대로 변경했습니다.
+저장 피부 프로필, 스킨 테스트, 행동 이력, 리뷰 신호를 함께 반영하는 `full-personalized` 추천을 실제 상품 규모에서 계측했습니다. 1천 상품에서는 드러나지 않던 비용이 8만 상품에서 후보 추출, 점수화, 저장·응답 구간에 누적됐습니다.
 
-### 측정 조건
+### 규모가 바뀌자 드러난 병목
 
-- 데이터: 실제 상품 `79,952개`
-- 시나리오: `full-personalized`
-- 부하: `VUS 10`, `3분`
-- 캐시: `cold`
-- 주요 지표: End-to-end p95, Scoring p95, 처리량, 오류율
-- 오류 gate: `1% 이하`
+측정 조건: `full-personalized` · `VUS 10` · `3분` · cold cache
 
-<p align="center">
-  <img src="docs/performance/results/recommendation/overview/03-optimization-timeline.png" alt="개인화 추천 파이프라인 최적화 단계별 p95 변화" width="100%" />
-</p>
+![상품 규모와 동시 요청이 커질 때 드러난 추천 병목](docs/performance/results/recommendation/readme/01-baseline-scale-heatmap.png)
 
-### 병목과 개선 단계
+| 상품 수 | 1K | 5K | 10K | 80K |
+| --- | ---: | ---: | ---: | ---: |
+| 추천 API p95 | 3.37초 | 8.16초 | 9.04초 | **52.01초** |
 
-| 단계 | 확인한 병목 | 적용한 변경 | End-to-end p95 | 오류율 |
-| --- | --- | --- | ---: | ---: |
-| Baseline | 후보 추출 전 브랜드 alias 전수 매칭과 온라인 점수 입력 계산 | 문제 재현 및 단계별 계측 추가 | 52.01초 | 2.00% |
-| Opt1 | Python 파서와 Elasticsearch에 중복된 검색 책임 | 브랜드 전수 매칭 제거, ES 중심 후보 추출 | 12.80초 | 0.00% |
-| Opt2 | 변하지 않는 상품 특징과 사용자 선호를 요청마다 반복 계산 | feature·preference rollup/read model 사전 계산 | 7.77초 | 0.00% |
-| Opt3 | 후보 점수 데이터를 여러 쿼리와 Python 조립으로 조회 | 후보 ID 기준 단일 bulk JOIN prefetch | 7.38초 | 0.00% |
+8만 상품 Baseline은 오류율 `2.00%`로 목표치인 `1% 이하`도 넘었습니다. 작은 데이터에서는 보이지 않던 구조적 비용을 확인한 뒤, 요청 흐름을 세 구간으로 나눠 계측과 개선을 반복했습니다.
 
-Baseline은 오류 gate를 초과했기 때문에 문제 재현 자료로만 사용하며, `52.01초 → 7.38초`를 확정 개선율로 계산하지 않습니다. 같은 성공 조건끼리 비교하면 Opt1→Opt2에서 End-to-end p95가 `39.3%`, Scoring p95가 `51.8%` 개선됐고, Opt2→Opt3에서는 각각 `5.0%`, `14.1%` 개선됐습니다.
+### 병목별 재설계
 
-현재 README 수치는 비교 조건과 원본 run이 연결된 Baseline~Opt3 생성 리포트를 기준으로 합니다. 후속 단계는 같은 조건과 provenance가 확인된 뒤 이 표에 추가합니다.
+| 구간 | 핵심 변경 | 구간 완료 시 p95 |
+| --- | --- | ---: |
+| 후보 추출 | Elasticsearch 중심 후보 retrieval, 중복 브랜드 매칭 제거 | 12.80초 |
+| 개인화 점수화 | 사전 집계 feature, bulk prefetch, coarse-to-fine ranking | 6.48초 |
+| 저장·응답 | 후보 추적 저장 제거, SQLAlchemy Core bulk write, 화면 전용 projection query | 4.48초 |
+| 반복·동시 처리 | Redis 후보 캐시, Uvicorn multi-worker | **3.12초** |
 
-### VUS 100 확장성 실험
+![병목을 분리한 뒤 핵심 이정표별 p95 변화](docs/performance/results/recommendation/readme/02-optimization-milestones.png)
 
-단일 요청의 병목 개선과 별도로, 배포 환경에서 `100 VUS`가 추천 API를 10분간 반복 호출하는 부하 테스트를 수행했습니다. 이 결과는 위의 `VUS 10·3분·cold cache` 최적화 단계와 조건이 다르므로 같은 개선 추이에 합산하지 않습니다.
+### 결과
 
-| 구성 | 실행 시간 | 추천 API p95 | 처리량 | 오류율 | 요청 수 | p95 3초 SLA |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| ASG 자동 확장 | 10분 | 15.35초 | 18.17 RPS | 0.0363% | 11,011 | 실패 |
-| ASG 5대 고정 | 10분 | 4.81초 | 30.86 RPS | 0.0054% | 18,568 | 실패 |
+- End-to-end p95: `52.01초 → 3.12초` (`48.89초`, 약 `94%` 감소)
+- 최종 측정 오류율: `0.00%`
+- 8만 상품 개인화 추천의 병목을 후보 추출, 점수화, 저장·응답으로 분리해 각각의 비용을 줄였습니다.
 
-5대를 미리 실행한 구성은 자동 확장 run보다 더 높은 처리량과 낮은 p95를 기록했지만, 두 구성 모두 목표인 p95 3초를 충족하지 못했습니다. 따라서 이 결과는 “오토스케일링으로 성능 문제가 해결됐다”는 근거가 아니라, 급격한 부하에서는 사전 용량 확보와 애플리케이션 병목 개선이 함께 필요하다는 실험 결과로 사용합니다.
+> 비교 기준: Baseline은 cold cache, 최종 값은 Redis warm cache와 multi-worker를 포함합니다. 따라서 위 감소율은 알고리즘 변경만이 아니라 캐시·런타임 확장을 포함한 최종 추천 경로의 개선 결과입니다.
 
-> 원본 k6 출력은 로컬 `perf-runs/asg-scaling-20260722-211212`와 `perf-runs/asg-fixed5-20260722-214757`에서 확인했습니다. 발표 비교표의 단일 서버 `p95 6.448초` 행은 현재 저장소에서 대응 raw run과 실행 manifest를 찾지 못해 위 확정 표에는 포함하지 않았습니다.
+상세 문서에서는 단계별 계측 그래프, 되돌린 실험, 원본 run과 재현 절차를 확인할 수 있습니다.
 
 관련 문서:
 
-- [추천 성능 최적화 Case Study](docs/performance/recommendation-performance-case-study.md)
-- [추천 성능 측정 결과](docs/performance/results/recommendation/README.md)
+- [추천 성능 최적화 분석](docs/performance/recommendation/README.md)
+- [단계별 그래프·원본 run](docs/performance/results/recommendation/README.md)
 - [성능 테스트 실행·재생성 방법](docs/performance/README.md)
 
 ## Quick Start
